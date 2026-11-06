@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ASX Arcade – connection test</title>
+<style>
+body{font:20px/1.4 system-ui,sans-serif;max-width:760px;margin:20px auto;padding:0 14px;background:#111;color:#eee}
+h1{font-size:24px}.row{padding:10px 12px;margin:8px 0;border-radius:8px;background:#222}
+.ok{border-left:8px solid #2ecc71}.bad{border-left:8px solid #e74c3c}.wait{border-left:8px solid #f1c40f}.na{border-left:8px solid #777}
+small{color:#aaa;display:block}
+</style></head><body>
+<h1>ASX Arcade – connection test</h1>
+<p>Page address: <b id="where"></b></p>
+<div id="out"></div>
+<script>
+document.getElementById('where').textContent = location.href;
+const out = document.getElementById('out');
+function row(name){ const d=document.createElement('div'); d.className='row wait'; d.innerHTML='<b>'+name+'</b> – testing…'; out.appendChild(d);
+  return (ok,msg)=>{ d.className='row '+(ok===null?'na':ok?'ok':'bad'); d.innerHTML='<b>'+name+'</b> – '+(ok===null?'not applicable':ok?'PASS':'FAIL')+(msg?'<small>'+msg+'</small>':''); }; }
+const timeout=(p,ms)=>Promise.race([p,new Promise((_,r)=>setTimeout(()=>r(new Error('timed out after '+ms/1000+'s')),ms))]);
+
+// 1. Plain web request to the PeerJS signalling service (what the hosted game needs)
+(async()=>{ const set=row('1. Reach the PeerJS service (https)');
+  try{ const r=await timeout(fetch('https://0.peerjs.com/peerjs/id',{cache:'no-store'}),8000); set(r.ok,'HTTP '+r.status); }
+  catch(e){ set(false,String(e.message||e)); } })();
+
+// 2. WebSocket to the PeerJS service (live room messages travel here)
+(async()=>{ const set=row('2. WebSocket to the PeerJS service');
+  try{ await timeout(new Promise((res,rej)=>{ const ws=new WebSocket('wss://0.peerjs.com/peerjs?key=peerjs&id=nt'+Math.random().toString(36).slice(2,9)+'&token='+Math.random().toString(36).slice(2));
+    ws.onmessage=e=>{ res(e.data); ws.close(); }; ws.onerror=()=>rej(new Error('connection refused / blocked')); ws.onclose=e=>{ if(!e.wasClean) rej(new Error('closed (code '+e.code+')')); }; }),8000);
+    set(true,'live room signalling works'); }
+  catch(e){ set(false,String(e.message||e)); } })();
+
+// 3. WebRTC allowed at all? (two connections inside this one page)
+(async()=>{ const set=row('3. WebRTC (direct student-to-teacher link) inside this computer');
+  try{ if(!window.RTCPeerConnection) throw new Error('WebRTC switched off on this computer');
+    const a=new RTCPeerConnection(),b=new RTCPeerConnection();
+    a.onicecandidate=e=>e.candidate&&b.addIceCandidate(e.candidate); b.onicecandidate=e=>e.candidate&&a.addIceCandidate(e.candidate);
+    const dc=a.createDataChannel('t'); const got=new Promise(r=>{ b.ondatachannel=e=>{ e.channel.onmessage=m=>r(m.data); }; dc.onopen=()=>dc.send('hello'); });
+    await a.setLocalDescription(await a.createOffer()); await b.setRemoteDescription(a.localDescription);
+    await b.setLocalDescription(await b.createAnswer()); await a.setRemoteDescription(b.localDescription);
+    await timeout(got,8000); set(true,'data channel worked'); a.close(); b.close(); }
+  catch(e){ set(false,String(e.message||e)); } })();
+
+// 4. Can WebRTC see outside (STUN)? Needed for the hosted game to link two different computers
+(async()=>{ const set=row('4. WebRTC can reach the internet (STUN)');
+  try{ if(!window.RTCPeerConnection) throw new Error('WebRTC switched off');
+    const pc=new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'}]}); pc.createDataChannel('x');
+    const types=new Set(); pc.onicecandidate=e=>{ if(e.candidate){ const m=/ typ (\w+)/.exec(e.candidate.candidate); if(m) types.add(m[1]); } };
+    await pc.setLocalDescription(await pc.createOffer()); await new Promise(r=>setTimeout(r,4000)); pc.close();
+    set(types.has('srflx'),'candidate types: '+(Array.from(types).join(', ')||'none')+(types.has('srflx')?'':' (no "srflx" = outside STUN blocked)')); }
+  catch(e){ set(false,String(e.message||e)); } })();
+
+// 5. Teacher-laptop relay (only exists when this page came from "node server.js")
+(async()=>{ const set=row('5. Teacher-laptop relay (node server.js)');
+  try{ const r=await timeout(fetch('/r/info',{cache:'no-store'}),5000); const j=await r.json(); if(j&&j.urls) set(true,'relay answered'); else set(null,'this page is not served by the classroom server'); }
+  catch(e){ set(null,'this page is not served by the classroom server'); } })();
+</script></body></html>
