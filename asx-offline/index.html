@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ASX Arcade – Share Market Game</title>
+
+  <!-- Fonts: Lexend (easy to read) + Press Start 2P (logo only) -->
+  <link href="lib/fonts.css" rel="stylesheet">
+
+  <!-- Tailwind via CDN (no build tools) -->
+  <link href="lib/tailwind.css" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="float-layer" aria-hidden="true"></div>
+  <div id="toast-layer" aria-live="polite"></div>
+
+  <!-- ================= JOIN SCREEN ================= -->
+  <section id="join-screen" class="overlay">
+    <div class="card join-box">
+      <h1 class="title-big">ASX<br>ARCADE</h1>
+      <p class="subtitle blink">★ SHARE MARKET GAME ★</p>
+
+      <label class="lbl" for="in-nick">1. Your name <span class="dim">(first name + first letter of last name)</span></label>
+      <input id="in-nick" class="field" maxlength="20" autocomplete="off" placeholder="e.g. Liam T">
+
+      <label class="lbl" for="in-class">2. Class code</label>
+      <input id="in-class" class="field" maxlength="12" autocomplete="off" placeholder="e.g. COM9A" style="text-transform:uppercase">
+
+      <p id="join-error" class="err is-hidden"></p>
+      <button id="btn-start" class="btn btn-buy big">▶ START GAME</button>
+      <button id="btn-solo" class="btn btn-amber small" style="margin-top:10px;width:100%">🧍 No teacher link? Play SOLO (your own clock)</button>
+
+      <p class="privacy">🔒 No email. No password. Your teacher can see your name, your trades and your score, live.</p>
+
+      <button id="btn-show-restore" class="linkish">I have a save code</button>
+      <div id="restore-box" class="is-hidden">
+        <textarea id="in-restore" class="field" rows="3" placeholder="Paste your save code here"></textarea>
+        <button id="btn-restore" class="btn btn-amber small" style="margin-top:8px">LOAD MY GAME</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= MAIN APP ================= -->
+  <div id="app" class="is-hidden">
+
+    <header class="topbar">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <div class="logo">ASX <span class="amber">ARCADE</span></div>
+
+        <div class="clock-box">
+          <div id="hdr-date" class="hdr-date">Mon 9 Nov · 10:00 AM</div>
+          <div class="hdr-sub">Market day <span id="hdr-day">0</span> · <span id="hdr-player"></span></div>
+          <div class="progress" title="How far through today's market"><div id="hdr-progress"></div></div>
+        </div>
+
+        <div id="hdr-status" class="pill">…</div>
+
+        <div id="hdr-run" class="pill run-pill" title="Your teacher controls the clock">…</div>
+
+        <div class="flex items-center gap-2">
+          <span id="rank-chip" class="pill rank-chip is-hidden" title="Your rank in the class">🏅</span>
+          <span id="cloud-chip" class="pill" title="Are you connected to your teacher?">…</span>
+          <button id="btn-help" class="icon-btn" title="Word help">❓ Help</button>
+          <button id="btn-settings" class="icon-btn" title="Settings">⚙ Settings</button>
+        </div>
+      </div>
+      <div id="news-bar" class="news-bar">📰 NEWS: Nothing yet. Your teacher starts the clock – then watch the market!</div>
+    </header>
+
+    <main class="wrap">
+
+      <!-- Money cards -->
+      <section class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-4">
+        <div class="stat-card main" id="card-nw">
+          <div class="stat-title">🏆 Net worth</div>
+          <div id="st-nw" class="stat-big">$50,000.00</div>
+          <div id="st-nw-change" class="stat-sub">■ Start: $50,000</div>
+        </div>
+        <div class="stat-card" id="card-cash">
+          <div class="stat-title">💵 Cash</div>
+          <div id="st-cash" class="stat-big">$50,000.00</div>
+          <div class="stat-sub">Ready to spend</div>
+        </div>
+        <div class="stat-card pending" id="card-pending">
+          <div class="stat-title"><span class="hourglass">⏳</span> <span id="lbl-pending">Pending (4 days)</span></div>
+          <div id="st-pending" class="stat-big">$0.00</div>
+          <div id="st-pending-list" class="stat-sub">Money from sold shares</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-title">📦 My shares</div>
+          <div id="st-shares" class="stat-big">$0.00</div>
+          <div class="stat-sub">Value right now</div>
+        </div>
+        <div class="stat-card" id="card-div">
+          <div class="stat-title">🎁 Dividends received</div>
+          <div id="st-div" class="stat-big">$0.00</div>
+          <div id="st-div-sub" class="stat-sub">Paid every 2 market days</div>
+        </div>
+        <div class="stat-card" id="card-tax">
+          <div class="stat-title">🧾 Tax (live estimate)</div>
+          <div id="st-tax" class="stat-big">$0.00</div>
+          <div id="st-tax-pct" class="stat-sub">No profit yet</div>
+          <div id="st-tax-sub" class="stat-sub">Tax Day soon</div>
+        </div>
+      </section>
+
+      <!-- Market | Trade | Diversification -->
+      <section class="grid grid-cols-1 lg:grid-cols-12 gap-4 mb-4">
+
+        <div class="card lg:col-span-5">
+          <h2 class="h2">📊 Shares to buy</h2>
+          <p class="small-note">Practice prices (not real). Tap a row to pick a share.</p>
+          <div class="table-wrap">
+            <table class="tbl" id="market-table">
+              <thead>
+                <tr><th></th><th>Share</th><th class="num">Price</th><th class="num">Today</th><th class="num">You own</th></tr>
+              </thead>
+              <tbody id="market-body"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="card lg:col-span-4">
+          <div class="flex items-center justify-between gap-2">
+            <div>
+              <h2 class="h2"><span id="sel-icon">⛏️</span> <span id="sel-sym">BHP</span></h2>
+              <div id="sel-name" class="dim">BHP Group</div>
+            </div>
+            <div class="text-right">
+              <div id="sel-price" class="sel-price">$0.00</div>
+              <div id="sel-change" class="up">▲ 0.00%</div>
+            </div>
+          </div>
+          <div class="chart-box short"><canvas id="price-chart" aria-label="Price chart" role="img"></canvas></div>
+          <div class="range-row" role="group" aria-label="Chart time range">
+            <button class="range-btn" data-range="1D">1 day</button>
+            <button class="range-btn" data-range="1W">1 week</button>
+            <button class="range-btn active" data-range="1M">1 month</button>
+            <button class="range-btn" data-range="1Y">1 year</button>
+            <button class="range-btn" data-range="5Y">5 years</button>
+          </div>
+
+          <div class="trade-panel">
+            <div class="flex items-center justify-between mb-2">
+              <span>You own: <b id="sel-own">0</b> shares</span>
+              <span class="dim">Order: <b class="amber">Market</b></span>
+            </div>
+            <div class="qty-row">
+              <button id="qty-minus" class="qty-btn" aria-label="Fewer shares">−</button>
+              <input id="qty" type="number" min="1" step="1" value="10" class="field qty-field" aria-label="Number of shares">
+              <button id="qty-plus" class="qty-btn" aria-label="More shares">+</button>
+              <button id="qty-max" class="btn btn-amber small">MAX</button>
+            </div>
+            <div id="trade-preview" class="preview"></div>
+            <div id="trade-paused" class="paused-msg is-hidden">⏸ Time is paused. You can still buy and sell at these prices.</div>
+            <div id="trade-closed" class="closed-msg is-hidden">🔴 The market is closed. Trading is 10:00 AM – 4:00 PM, Monday to Friday (game time).</div>
+            <div class="grid grid-cols-2 gap-3 mt-3">
+              <button id="btn-buy" class="btn btn-buy big">🛒 BUY</button>
+              <button id="btn-sell" class="btn btn-sell big">💰 SELL</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="card lg:col-span-3">
+          <h2 class="h2">🥧 Where is my money?</h2>
+          <div class="chart-box pie"><canvas id="pie-chart" aria-label="Pie chart of your money by sector" role="img"></canvas></div>
+          <ul id="pie-legend" class="legend"></ul>
+          <div id="div-warning" class="warn"></div>
+          <div id="tip-box" class="tip" aria-live="off">
+            <div class="tip-title">💡 Trading tip</div>
+            <div id="tip-text" class="tip-text"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Tabs -->
+      <section class="card">
+        <div class="tabs" role="tablist">
+          <button class="tab-btn active" data-tab="shares" role="tab">📦 My shares</button>
+          <button class="tab-btn" data-tab="log" role="tab">📜 Money log & news</button>
+          <button class="tab-btn" data-tab="progress" role="tab">📈 My score</button>
+        </div>
+
+        <div id="tab-shares" class="tab-panel">
+          <div class="table-wrap">
+            <table class="tbl">
+              <thead><tr><th>Share</th><th class="num">How many</th><th class="num">Bought at</th><th class="num">Now</th><th class="num">Value</th><th class="num">Profit / loss</th><th class="hide-sm">Tax discount</th></tr></thead>
+              <tbody id="holdings-body"></tbody>
+            </table>
+          </div>
+          <p id="holdings-empty" class="center-note">You have no shares yet. Pick a share and press 🛒 BUY!</p>
+        </div>
+
+        <div id="tab-log" class="tab-panel is-hidden">
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div><h3 class="h3">Money log</h3><ul id="log-list" class="log-list"></ul></div>
+            <div><h3 class="h3">News so far</h3><ul id="news-list" class="log-list"></ul></div>
+          </div>
+        </div>
+
+        <div id="tab-progress" class="tab-panel is-hidden">
+          <div class="chart-box tall"><canvas id="nw-chart" aria-label="Net worth over time" role="img"></canvas></div>
+          <p class="small-note">The dotted line is where you started ($50,000). Above the line = you are winning!</p>
+        </div>
+      </section>
+
+      <footer class="foot">Practice game for learning. Prices are pretend. Not real money or advice.</footer>
+    </main>
+  </div>
+
+  <!-- ================= MODALS ================= -->
+  <div id="event-modal" class="overlay is-hidden" role="dialog" aria-modal="true" aria-labelledby="ev-title">
+    <div class="card modal-box event-box">
+      <div class="ev-tag blink">⚡ BREAKING NEWS ⚡</div>
+      <div id="ev-icon" class="ev-icon">📈</div>
+      <h2 id="ev-title" class="h2" style="justify-content:center">Interest rates go UP</h2>
+      <p id="ev-text" class="ev-text"></p>
+      <div id="ev-sectors" class="ev-sectors"></div>
+      <div class="ev-timer" title="This message closes by itself after a few seconds"><div id="ev-bar"></div></div>
+    </div>
+  </div>
+
+  <div id="solo-overlay" class="overlay is-hidden" role="dialog" aria-modal="true">
+    <div class="card modal-box event-box">
+      <div class="ev-tag">🧍 SOLO MODE</div>
+      <div class="ev-icon">⏱</div>
+      <h2 class="h2" style="justify-content:center">Wait for your teacher to say GO</h2>
+      <p class="ev-text" id="solo-text">Everyone presses the button together. Your game clock runs on this computer.</p>
+      <button id="btn-solo-go" class="btn btn-buy big">▶ GO!</button>
+    </div>
+  </div>
+
+  <div id="final-modal" class="overlay is-hidden" role="dialog" aria-modal="true" aria-labelledby="final-title">
+    <div class="card modal-box event-box">
+      <div class="ev-tag">🏁 MARKET CLOSED 🏁</div>
+      <div class="ev-icon">🏆</div>
+      <h2 id="final-title" class="h2" style="justify-content:center">Game over!</h2>
+      <p id="final-me" class="ev-text">Waiting for the final results…</p>
+      <div id="final-top" class="podium"></div>
+      <p class="small-note">Final net worth = cash + shares + pending money, minus the tax you would owe.</p>
+      <button id="final-ok" class="btn btn-buy big">Close</button>
+    </div>
+  </div>
+
+  <div id="help-modal" class="overlay is-hidden" role="dialog" aria-modal="true" aria-labelledby="help-title">
+    <div class="card modal-box wide">
+      <h2 id="help-title" class="h2">❓ How to play</h2>
+      <ol class="steps">
+        <li><b>1.</b> Tap a share in the list. 📊</li>
+        <li><b>2.</b> Choose how many. Press <span class="up">🛒 BUY</span>.</li>
+        <li><b>3.</b> Watch the arrows. <span class="up">▲ up = good</span> · <span class="down">▼ down = bad</span></li>
+        <li><b>4.</b> Press <span class="down">💰 SELL</span> when you want your money back.</li>
+        <li><b>5.</b> Spread your money across many sectors. 🥧</li>
+      </ol>
+      <h3 class="h3">Game time</h3>
+      <p id="time-help"></p>
+      <h3 class="h3">Word help</h3>
+      <dl class="gloss" id="glossary"></dl>
+      <button class="btn btn-amber big modal-close" data-close="help-modal">Close ✖</button>
+    </div>
+  </div>
+
+  <div id="settings-modal" class="overlay is-hidden" role="dialog" aria-modal="true" aria-labelledby="set-title">
+    <div class="card modal-box">
+      <h2 id="set-title" class="h2">⚙ Settings</h2>
+      <label class="check"><input type="checkbox" id="set-big"> Bigger text</label>
+      <h3 class="h3">My save code</h3>
+      <textarea id="my-code" class="field" rows="3" readonly></textarea>
+      <div class="flex gap-2 mt-2 flex-wrap">
+        <button id="btn-copy-code" class="btn btn-amber small">📋 Copy</button>
+        <button id="btn-solo-finish" class="btn btn-amber small is-hidden">🏁 Finish my game now</button>
+        <button id="btn-reset" class="btn btn-sell small">🗑 New player (erase)</button>
+      </div>
+      <p class="small-note">Keep your save code safe. It brings your game back if this computer is cleared.</p>
+      <button class="btn btn-buy big modal-close" data-close="settings-modal">Done ✔</button>
+    </div>
+  </div>
+
+  <!-- Libraries: Chart.js + PeerJS (plain script tags, no build tools) -->
+  <script src="lib/chart.umd.js"></script>
+
+  <script src="lib/peerjs.min.js"></script>
+  <script src="engine.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>
